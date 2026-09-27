@@ -1,0 +1,6 @@
+{
+  "name": "FeeTrack",
+  "description": "Tuition & Coaching Fee Management with student profiles, payment receipts, monthly records, WhatsApp reminders, and AI collection insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

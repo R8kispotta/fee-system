@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Graduation Cap Top (Mortarboard) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,27 L80,39 L54,51 L28,39 Z" />
+
+    <!-- Cap lower skull band -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M39,44.5 C39,44.5 44,53 54,53 C64,53 69,44.5 69,44.5 L69,49 C69,55 62,57 54,57 C46,57 39,55 39,49 Z" />
+
+    <!-- Tassel hanging to left -->
+    <path
+        android:strokeColor="#FCD34D"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M54,39 L31,45 L29,54" />
+    <path
+        android:fillColor="#FCD34D"
+        android:pathData="M27,53 A2.5,2.5 0 1,0 31,53 A2.5,2.5 0 1,0 27,53 Z" />
+
+    <!-- Fee Management Receipt / Ledger Card -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,58 C36,55 38,53 41,53 L67,53 C70,53 72,55 72,58 L72,83 C72,85 70,87 67,87 L41,87 C38,87 36,85 36,83 Z" />
+
+    <!-- Receipt Header Bar -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M36,58 C36,55 38,53 41,53 L67,53 C70,53 72,55 72,58 L72,62 L36,62 Z" />
+
+    <!-- Rupee Symbol on Card -->
+    <!-- Top horizontal bar -->
+    <path
+        android:fillColor="#1E3A8A"
+        android:pathData="M46,65 L62,65 L62,67.5 L46,67.5 Z" />
+    <!-- Second horizontal bar -->
+    <path
+        android:fillColor="#1E3A8A"
+        android:pathData="M46,70 L58,70 L58,72.2 L46,72.2 Z" />
+    <!-- Vertical stem and loop -->
+    <path
+        android:fillColor="#1E3A8A"
+        android:pathData="M50,65 L53.5,65 L53.5,73.5 C56.5,73.5 58.5,72 58.5,69.5 L58.5,69 L61.5,69 L61.5,69.8 C61.5,73.5 58,75.8 53.5,76 L62,84 L57.5,84 L50.5,77 L50.5,84 L47.5,84 L47.5,65 Z" />
+
+    <!-- Verified / Paid checkmark badge -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M70,72 A8,8 0 1,0 70,88 A8,8 0 1,0 70,72 Z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M66.5,80 L69,82.5 L74,77" />
+</vector>
