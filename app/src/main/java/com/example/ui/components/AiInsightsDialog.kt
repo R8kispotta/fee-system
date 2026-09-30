@@ -61,11 +61,7 @@ fun AiInsightsDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                    AvaAgenticSphere(size = 28.dp)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "AI Fee & Revenue Insights",
@@ -88,16 +84,22 @@ fun AiInsightsDialog(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        CircularProgressIndicator(strokeWidth = 3.dp)
-                        Spacer(modifier = Modifier.height(16.dp))
+                        AvaAgenticSphere(size = 64.dp)
+                        Spacer(modifier = Modifier.height(18.dp))
                         Text(
-                            text = "Analyzing tuition fee collections with Gemini...",
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 13.sp
+                            text = "Ava Agentic OS synthesizing financial insights...",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Analyzing tuition fee collections & trends with Gemini",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 } else if (!insightsText.isNullOrEmpty()) {

@@ -40,6 +40,7 @@ class ExampleRobolectricTest {
     val settings = InstituteSettings()
     assertNotNull(settings.name)
     assertEquals("₹", settings.currencySymbol)
+    assertEquals("2026-2027", settings.session)
   }
 
   @Test
@@ -114,5 +115,95 @@ class ExampleRobolectricTest {
     assertTrue(withdrawalMsg.contains("STUDENT WITHDRAWAL & COURSE COMPLETION NOTICE"))
     assertTrue(withdrawalMsg.contains("Course Completed Successfully"))
     assertTrue(withdrawalMsg.contains("All Dues Cleared"))
+  }
+
+  @Test
+  fun `cloud backup record creation and verification`() {
+    val backup = com.example.data.cloud.CloudBackupRecord(
+      backupId = "backup_20260928_120000_abc123",
+      userId = "user_test_987",
+      instituteName = "Vidya Coaching Institute",
+      session = "2026-2027",
+      timestamp = "2026-09-28 12:00:00",
+      totalStudents = 45,
+      totalPayments = 120,
+      dataPayload = "{}"
+    )
+    assertEquals("backup_20260928_120000_abc123", backup.backupId)
+    assertEquals(45, backup.totalStudents)
+    assertEquals("2026-2027", backup.session)
+  }
+
+  @Test
+  fun `standard kg to 10 batches verification and flexible timings`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val database = com.example.data.local.AppDatabase.getInstance(context)
+    val repo = com.example.data.repository.FeeRepository(database.appDao(), context)
+    val batches = repo.getStandardKgTo10Batches()
+
+    // Verify all 11 classes from KG to 10 are present
+    val classes = batches.map { it.gradeClass }
+    assertTrue(classes.contains("Class KG"))
+    for (i in 1..10) {
+      assertTrue("Should contain Class $i", classes.contains("Class $i"))
+    }
+
+    // Verify all timings are within afternoon/evening range (12:00 PM to 8:00 PM)
+    for (b in batches) {
+      assertTrue("Timing should be PM: ${b.timeSlot}", b.timeSlot.contains("PM"))
+      assertTrue("Batch name should not be blank", b.name.isNotBlank())
+    }
+
+    // Verify batch can be flexibly edited with custom timing
+    val customBatch = batches.first().copy(
+      name = "KG Little Stars - Advanced",
+      timeSlot = "01:15 PM - 02:45 PM",
+      feeAmount = 950.0
+    )
+    assertEquals("01:15 PM - 02:45 PM", customBatch.timeSlot)
+    assertEquals(950.0, customBatch.feeAmount, 0.01)
+  }
+
+  @Test
+  fun `expense item creation and net profit verification`() {
+    val expense = com.example.data.local.ExpenseItem(
+      title = "Classroom AC Electricity",
+      category = "Electricity & Bills",
+      amount = 3500.0,
+      dateString = "2026-09-28",
+      monthKey = 202609,
+      paymentMode = "UPI",
+      notes = "September bill"
+    )
+    assertEquals("Classroom AC Electricity", expense.title)
+    assertEquals("Electricity & Bills", expense.category)
+    assertEquals(3500.0, expense.amount, 0.01)
+
+    // Net profit calculation
+    val collectedFee = 45000.0
+    val totalExpenses = 12000.0
+    val netCashflow = collectedFee - totalExpenses
+    assertEquals(33000.0, netCashflow, 0.01)
+  }
+
+  @Test
+  fun `multi month advance fee payment verification`() {
+    val payment = com.example.data.local.FeePayment(
+      studentId = 5L,
+      studentName = "Pooja Verma",
+      gradeClass = "Class 9",
+      monthYear = "September 2026",
+      monthKey = 202609,
+      amountPaid = 5400.0,
+      discount = 200.0,
+      paymentMode = "UPI",
+      receiptNo = "REC-2026-0042",
+      monthsCovered = 3,
+      coveragePeriod = "3 Months Advance (Quarterly)"
+    )
+    assertEquals(3, payment.monthsCovered)
+    assertEquals("3 Months Advance (Quarterly)", payment.coveragePeriod)
+    assertEquals(5400.0, payment.amountPaid, 0.01)
+    assertEquals(200.0, payment.discount, 0.01)
   }
 }

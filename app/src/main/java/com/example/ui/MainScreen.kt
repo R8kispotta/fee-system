@@ -1,9 +1,18 @@
 package com.example.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Dashboard
@@ -12,11 +21,13 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,13 +39,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.model.StudentMonthlyFeeRecord
 import com.example.ui.components.AddEditStudentDialog
+import com.example.ui.components.AddExpenseDialog
 import com.example.ui.components.AdminLockDialog
 import com.example.ui.components.AiInsightsDialog
 import com.example.ui.components.AiReminderDialog
+import com.example.ui.components.BatchManagementDialog
 import com.example.ui.components.EnrollmentNotificationDialog
 import com.example.ui.components.FeePaymentDialog
 import com.example.ui.components.ReceiptViewDialog
@@ -52,7 +68,7 @@ enum class NavTab(val title: String, val icon: ImageVector, val tag: String) {
     DASHBOARD("Dashboard", Icons.Default.Dashboard, "tab_dashboard"),
     STUDENTS("Students", Icons.Default.People, "tab_students"),
     WHATSAPP("Reminders", Icons.Default.NotificationsActive, "tab_whatsapp"),
-    LEDGER("Receipts", Icons.AutoMirrored.Filled.ReceiptLong, "tab_ledger"),
+    LEDGER("Ledger", Icons.AutoMirrored.Filled.ReceiptLong, "tab_ledger"),
     ATTENDANCE("Attendance", Icons.Default.DateRange, "tab_attendance"),
     SETTINGS("Settings", Icons.Default.Settings, "tab_settings")
 }
@@ -127,10 +143,48 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
         var isAiInsightsOpen by remember { mutableStateOf(false) }
         val aiInsightsText by viewModel.aiInsightsText.collectAsStateWithLifecycle()
 
+        // Protected Cloud Server Backup State
+        val cloudUserState by viewModel.cloudUserState.collectAsStateWithLifecycle()
+        val cloudBackups by viewModel.cloudBackups.collectAsStateWithLifecycle()
+        val cloudSyncState by viewModel.cloudSyncState.collectAsStateWithLifecycle()
+        val lastCloudSyncTime by viewModel.lastCloudSyncTime.collectAsStateWithLifecycle()
+
+        // Batches State & Dialog
+        val isBatchManagerOpen by viewModel.isBatchManagerOpen.collectAsStateWithLifecycle()
+        val batches by viewModel.batches.collectAsStateWithLifecycle()
+        val batchPerformances by viewModel.batchPerformances.collectAsStateWithLifecycle()
+
+        // Expense State & Dialog
+        val expenses by viewModel.expenses.collectAsStateWithLifecycle()
+        val isAddExpenseOpen by viewModel.isAddExpenseDialogOpen.collectAsStateWithLifecycle()
+
+        if (isAddExpenseOpen) {
+            AddExpenseDialog(
+                currencySymbol = settings.currencySymbol,
+                onDismiss = { viewModel.isAddExpenseDialogOpen.value = false },
+                onSaveExpense = { title, category, amount, dateString, paymentMode, notes ->
+                    viewModel.recordExpense(title, category, amount, dateString, paymentMode, notes)
+                }
+            )
+        }
+
+        if (isBatchManagerOpen) {
+            BatchManagementDialog(
+                batches = batches,
+                currencySymbol = settings.currencySymbol,
+                onDismiss = { viewModel.isBatchManagerOpen.value = false },
+                onSaveBatch = { viewModel.saveBatch(it) },
+                onDeleteBatch = { viewModel.deleteBatch(it) },
+                onResetKgTo10Batches = { viewModel.resetDefaultKgTo10Batches() }
+            )
+        }
+
         // Add/Edit Student Dialog
         if (isAddEditOpen) {
             AddEditStudentDialog(
                 studentToEdit = studentToEdit,
+                batches = batches,
+                onManageBatches = { viewModel.isBatchManagerOpen.value = true },
                 onDismiss = { viewModel.isAddEditStudentOpen.value = false },
                 onSave = { student -> viewModel.saveStudent(student) }
             )
@@ -184,7 +238,7 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
                     viewModel.isPaymentDialogOpen.value = false
                     viewModel.studentForPayment.value = null
                 },
-                onConfirm = { amount, discount, monthYear, monthKey, mode, txnId, remarks ->
+                onConfirm = { amount, discount, monthYear, monthKey, mode, txnId, remarks, monthsCovered, coveragePeriod ->
                     viewModel.collectFee(
                         student = studentForPayment!!,
                         amount = amount,
@@ -194,6 +248,8 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
                         paymentMode = mode,
                         transactionId = txnId,
                         remarks = remarks,
+                        monthsCovered = monthsCovered,
+                        coveragePeriod = coveragePeriod,
                         onReceiptCreated = { /* handled in VM */ }
                     )
                 }
@@ -244,15 +300,29 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             bottomBar = {
                 if (selectedDetailStudent == null) {
-                    NavigationBar {
-                        NavTab.values().forEach { tab ->
-                            NavigationBarItem(
-                                selected = currentTab == tab,
-                                onClick = { currentTab = tab },
-                                icon = { Icon(imageVector = tab.icon, contentDescription = tab.title) },
-                                label = { Text(tab.title) },
-                                modifier = Modifier.testTag(tab.tag)
-                            )
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 4.dp,
+                        shadowElevation = 6.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                    ) {
+                        NavigationBar(
+                            modifier = Modifier.height(52.dp),
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 0.dp
+                        ) {
+                            NavTab.values().forEach { tab ->
+                                NavigationBarItem(
+                                    selected = currentTab == tab,
+                                    onClick = { currentTab = tab },
+                                    icon = { Icon(imageVector = tab.icon, contentDescription = tab.title, modifier = Modifier.size(19.dp)) },
+                                    label = { Text(tab.title, fontSize = 9.5.sp, fontWeight = if (currentTab == tab) FontWeight.Bold else FontWeight.Normal) },
+                                    alwaysShowLabel = false,
+                                    modifier = Modifier.testTag(tab.tag)
+                                )
+                            }
                         }
                     }
                 }
@@ -295,12 +365,20 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
                         }
                     )
                 } else {
-                    when (currentTab) {
+                    AnimatedContent(
+                        targetState = currentTab,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(160)) togetherWith fadeOut(animationSpec = tween(120))
+                        },
+                        label = "tab_crossfade"
+                    ) { activeTab ->
+                        when (activeTab) {
                         NavTab.DASHBOARD -> {
                             DashboardScreen(
                                 summary = summary,
                                 settings = settings,
                                 recentPayments = payments,
+                                batchPerformances = batchPerformances,
                                 onMonthChange = { offset -> viewModel.changeMonth(offset) },
                                 onAddStudentClick = {
                                     viewModel.studentToEdit.value = null
@@ -315,6 +393,8 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
                                         viewModel.isAddEditStudentOpen.value = true
                                     }
                                 },
+                                onAddExpenseClick = { viewModel.isAddExpenseDialogOpen.value = true },
+                                onManageBatchesClick = { viewModel.isBatchManagerOpen.value = true },
                                 onTakeAttendanceClick = { currentTab = NavTab.ATTENDANCE },
                                 onAiInsightsClick = {
                                     viewModel.generateInstituteAiInsights()
@@ -325,7 +405,9 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
                                     viewModel.isReceiptDialogOpen.value = true
                                 },
                                 onViewStudentsClick = { currentTab = NavTab.STUDENTS },
-                                onWhatsAppHubClick = { currentTab = NavTab.WHATSAPP }
+                                onWhatsAppHubClick = { currentTab = NavTab.WHATSAPP },
+                                cloudSyncTime = lastCloudSyncTime,
+                                onCloudBackupClick = { currentTab = NavTab.SETTINGS }
                             )
                         }
 
@@ -372,6 +454,9 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
                                 onWithdrawStudentClick = { student ->
                                     viewModel.studentForWithdrawal.value = student
                                     viewModel.isWithdrawalDialogOpen.value = true
+                                },
+                                onManageBatchesClick = {
+                                    viewModel.isBatchManagerOpen.value = true
                                 }
                             )
                         }
@@ -398,6 +483,7 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
                         NavTab.LEDGER -> {
                             LedgerScreen(
                                 payments = payments,
+                                expenses = expenses,
                                 students = students,
                                 settings = settings,
                                 onReceiptClick = { payment ->
@@ -412,7 +498,9 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
                                         viewModel.studentToEdit.value = null
                                         viewModel.isAddEditStudentOpen.value = true
                                     }
-                                }
+                                },
+                                onAddExpenseClick = { viewModel.isAddExpenseDialogOpen.value = true },
+                                onDeleteExpense = { expense -> viewModel.deleteExpense(expense) }
                             )
                         }
 
@@ -445,7 +533,19 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
                                     viewModel.generateInstituteAiInsights()
                                     isAiInsightsOpen = true
                                 },
-                                onLockDashboard = { viewModel.lockAdmin() }
+                                onLockDashboard = { viewModel.lockAdmin() },
+                                cloudUserState = cloudUserState,
+                                cloudBackups = cloudBackups,
+                                cloudSyncState = cloudSyncState,
+                                lastCloudSyncTime = lastCloudSyncTime,
+                                onSignInGoogle = { viewModel.signInWithGoogleCloud() },
+                                onSignOutGoogle = { viewModel.signOutCloud() },
+                                onBackupToCloud = { viewModel.backupToCloudServer() },
+                                onRestoreCloudBackup = { record -> viewModel.restoreFromCloudBackup(record) },
+                                onDeleteCloudBackup = { id -> viewModel.deleteCloudBackup(id) },
+                                batches = batches,
+                                onManageBatches = { viewModel.isBatchManagerOpen.value = true },
+                                onResetKgTo10Batches = { viewModel.resetDefaultKgTo10Batches() }
                             )
                         }
                     }
@@ -453,4 +553,5 @@ fun MainScreen(viewModel: FeeViewModel = viewModel()) {
             }
         }
     }
+}
 }

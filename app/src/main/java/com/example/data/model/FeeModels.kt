@@ -26,6 +26,7 @@ data class StudentMonthlyFeeRecord(
 data class InstituteSettings(
     val name: String = "Vidya Coaching Institute",
     val tagline: String = "Empowering Students to Excel",
+    val session: String = "2026-2027",
     val address: String = "Plot 42, Academy Lane, Knowledge Park",
     val phone: String = "+91 98765 43210",
     val email: String = "support@vidyainstitute.in",
@@ -45,6 +46,18 @@ data class DashboardSummary(
     val overdueCount: Int = 0,
     val overdueAmount: Double = 0.0,
     val collectionPercentage: Float = 0f,
+    val totalExpensesThisMonth: Double = 0.0,
+    val netProfitThisMonth: Double = 0.0,
     val selectedMonthYear: String = "",
     val selectedMonthKey: Int = 0
+)
+
+data class BatchPerformance(
+    val batch: com.example.data.local.BatchItem,
+    val studentCount: Int,
+    val expectedAmount: Double,
+    val collectedAmount: Double,
+    val pendingAmount: Double,
+    val collectionPercentage: Float,
+    val overdueCount: Int
 )

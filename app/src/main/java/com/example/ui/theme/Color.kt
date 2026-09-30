@@ -58,3 +58,17 @@ val PendingAmberLight = Color(0xFFFEF3C7)
 val OverdueRed = Color(0xFFEF4444)
 val OverdueRedLight = Color(0xFFFEE2E2)
 val WhatsAppColor = Color(0xFF25D366)
+
+// Modern Fintech / Banking App Palette
+val BankDarkObsidian = Color(0xFF090D16)
+val BankCardNavy = Color(0xFF0F172A)
+val BankCardSlate = Color(0xFF1E293B)
+val BankCardAccent = Color(0xFF2563EB)
+val BankNeonCyan = Color(0xFF06B6D4)
+val BankNeonEmerald = Color(0xFF10B981)
+val BankGoldChip = Color(0xFFF59E0B)
+val BankGoldChipBorder = Color(0xFFD97706)
+val BankSurfaceLight = Color(0xFFF8FAFC)
+val BankSurfaceCard = Color(0xFFFFFFFF)
+val BankActionCircleBg = Color(0xFFEEF2F6)
+

@@ -26,6 +26,19 @@ object PrintReceiptHelper {
     ): String {
         val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
         val formattedDate = dateFormat.format(Date(payment.paymentDate))
+        val upiUrl = UpiQrCodeHelper.generateUpiUrl(
+            upiId = settings.upiId,
+            payeeName = settings.name,
+            amount = payment.amountPaid,
+            note = "Receipt ${payment.receiptNo}"
+        )
+        val qrBase64 = UpiQrCodeHelper.generateBase64Qr(upiUrl, 200)
+
+        val periodDesc = if (payment.monthsCovered > 1) {
+            "${payment.monthYear} (${payment.monthsCovered} Mo Advance)"
+        } else {
+            payment.monthYear
+        }
 
         return """
         <!DOCTYPE html>
@@ -196,7 +209,7 @@ object PrintReceiptHelper {
                     <tbody>
                         <tr>
                             <td>Tuition & Coaching Fee</td>
-                            <td>${payment.monthYear}</td>
+                            <td>${periodDesc}</td>
                             <td style="text-align:right;">${settings.currencySymbol} ${(payment.amountPaid + payment.discount).toInt()}</td>
                         </tr>
                         ${if (payment.discount > 0) """
@@ -229,6 +242,12 @@ object PrintReceiptHelper {
                         * Computer generated receipt. Fee once paid is non-refundable.<br>
                         Thank you for your prompt payment!
                     </div>
+                    ${if (qrBase64 != null && settings.upiId.isNotBlank()) """
+                    <div style="text-align:center;">
+                        <img src="$qrBase64" width="72" height="72" style="border:1px solid #cbd5e1; border-radius:6px; padding:2px;" alt="UPI QR" />
+                        <div style="font-size:9px; color:#64748b; margin-top:2px;">Scan & Pay UPI<br>${settings.upiId}</div>
+                    </div>
+                    """ else ""}
                     <div class="signature-box">
                         Authorized Signature<br>
                         <span style="font-size:10px; font-weight:normal; color:#64748b;">${settings.name}</span>

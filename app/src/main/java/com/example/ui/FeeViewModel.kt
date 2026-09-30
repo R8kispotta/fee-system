@@ -4,11 +4,17 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ai.GeminiFeeService
+import com.example.data.cloud.CloudBackupRecord
+import com.example.data.cloud.CloudBackupRepository
+import com.example.data.cloud.CloudSyncState
+import com.example.data.cloud.CloudUserState
 import com.example.data.local.AppDatabase
 import com.example.data.local.Attendance
 import com.example.data.local.BatchItem
+import com.example.data.local.ExpenseItem
 import com.example.data.local.FeePayment
 import com.example.data.local.Student
+import com.example.data.model.BatchPerformance
 import com.example.data.model.DashboardSummary
 import com.example.data.model.InstituteSettings
 import com.example.data.model.MonthFeeStatus
@@ -38,6 +44,9 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val batches: StateFlow<List<BatchItem>> = repository.allBatches
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val expenses: StateFlow<List<ExpenseItem>> = repository.allExpenses
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _settings = MutableStateFlow(repository.getSettings())
@@ -90,6 +99,10 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
     val isWithdrawalDialogOpen = MutableStateFlow(false)
     val studentForWithdrawal = MutableStateFlow<Student?>(null)
 
+    // Batch Management Dialog states
+    val isBatchManagerOpen = MutableStateFlow(false)
+    val batchToEdit = MutableStateFlow<BatchItem?>(null)
+
     // AI States
     val aiReminderText = MutableStateFlow<String?>(null)
     val isAiGenerating = MutableStateFlow(false)
@@ -97,6 +110,31 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
 
     // User Feedback Snackbars
     val snackbarMessage = MutableStateFlow<String?>(null)
+
+    // Protected Cloud Backup Server (Firebase Firestore & Google Auth)
+    private val cloudBackupRepo = CloudBackupRepository(application)
+
+    val cloudUserState: StateFlow<CloudUserState> = cloudBackupRepo.observeAuthState()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            CloudUserState(
+                isAuthenticated = cloudBackupRepo.getCurrentUser() != null,
+                userId = cloudBackupRepo.getCurrentUser()?.uid,
+                email = cloudBackupRepo.getCurrentUser()?.email,
+                displayName = cloudBackupRepo.getCurrentUser()?.displayName,
+                photoUrl = cloudBackupRepo.getCurrentUser()?.photoUrl?.toString()
+            )
+        )
+
+    val cloudBackups: StateFlow<List<CloudBackupRecord>> = cloudBackupRepo.observeCloudBackups()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _cloudSyncState = MutableStateFlow<CloudSyncState>(CloudSyncState.Idle)
+    val cloudSyncState: StateFlow<CloudSyncState> = _cloudSyncState.asStateFlow()
+
+    private val _lastCloudSyncTime = MutableStateFlow(cloudBackupRepo.getLastCloudSyncTime())
+    val lastCloudSyncTime: StateFlow<String?> = _lastCloudSyncTime.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -151,13 +189,21 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val monthlyExpenses: StateFlow<List<ExpenseItem>> = combine(
+        expenses,
+        _selectedMonthKey
+    ) { list, monthKey ->
+        list.filter { it.monthKey == monthKey }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Dashboard Financial Summary
     val dashboardSummary: StateFlow<DashboardSummary> = combine(
         students,
         monthlyStudentRecords,
+        monthlyExpenses,
         _selectedMonthYear,
         _selectedMonthKey
-    ) { studentList, records, monthYear, monthKey ->
+    ) { studentList, records, expenseList, monthYear, monthKey ->
         val totalExpected = studentList.sumOf { it.monthlyFee }
         val totalCollected = records.sumOf { it.amountPaid }
         val totalPending = records.sumOf { it.amountDue }
@@ -165,6 +211,8 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
         val overdueCount = overdueRecords.size
         val overdueAmount = overdueRecords.sumOf { it.amountDue }
         val percentage = if (totalExpected > 0) ((totalCollected / totalExpected) * 100).toFloat() else 0f
+        val totalExpenses = expenseList.sumOf { it.amount }
+        val netProfit = totalCollected - totalExpenses
 
         DashboardSummary(
             totalStudents = studentList.size,
@@ -174,10 +222,40 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
             overdueCount = overdueCount,
             overdueAmount = overdueAmount,
             collectionPercentage = percentage,
+            totalExpensesThisMonth = totalExpenses,
+            netProfitThisMonth = netProfit,
             selectedMonthYear = monthYear,
             selectedMonthKey = monthKey
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardSummary())
+
+    // Batch Collection Performance
+    val batchPerformances: StateFlow<List<BatchPerformance>> = combine(
+        batches,
+        monthlyStudentRecords
+    ) { batchList, records ->
+        batchList.map { batch ->
+            val batchRecords = records.filter { rec ->
+                rec.student.batch.contains(batch.name, ignoreCase = true) ||
+                rec.student.gradeClass.equals(batch.gradeClass, ignoreCase = true)
+            }
+            val expected = batchRecords.sumOf { it.student.monthlyFee }
+            val collected = batchRecords.sumOf { it.amountPaid }
+            val pending = batchRecords.sumOf { it.amountDue }
+            val overdue = batchRecords.count { it.isOverdue }
+            val pct = if (expected > 0) ((collected / expected) * 100).toFloat() else 0f
+
+            BatchPerformance(
+                batch = batch,
+                studentCount = batchRecords.size,
+                expectedAmount = expected,
+                collectedAmount = collected,
+                pendingAmount = pending,
+                collectionPercentage = pct,
+                overdueCount = overdue
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Month Navigation
     fun changeMonth(offsetMonths: Int) {
@@ -269,6 +347,8 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
         paymentMode: String,
         transactionId: String,
         remarks: String,
+        monthsCovered: Int = 1,
+        coveragePeriod: String = "",
         onReceiptCreated: (FeePayment) -> Unit
     ) {
         viewModelScope.launch {
@@ -285,7 +365,9 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
                 paymentMode = paymentMode,
                 transactionId = transactionId,
                 receiptNo = receiptNo,
-                remarks = remarks
+                remarks = remarks,
+                monthsCovered = monthsCovered,
+                coveragePeriod = coveragePeriod
             )
             val paymentId = repository.recordPayment(payment)
             val savedPayment = payment.copy(id = paymentId)
@@ -293,7 +375,11 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
             studentForPayment.value = null
             selectedReceipt.value = savedPayment
             isReceiptDialogOpen.value = true
-            snackbarMessage.value = "Payment recorded: Receipt $receiptNo"
+            snackbarMessage.value = if (monthsCovered > 1) {
+                "Advance payment recorded ($monthsCovered Months): Receipt $receiptNo"
+            } else {
+                "Payment recorded: Receipt $receiptNo"
+            }
             onReceiptCreated(savedPayment)
         }
     }
@@ -306,6 +392,41 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
                 selectedReceipt.value = null
             }
             snackbarMessage.value = "Receipt ${payment.receiptNo} deleted"
+        }
+    }
+
+    // Expense Operations
+    val isAddExpenseDialogOpen = MutableStateFlow(false)
+
+    fun recordExpense(
+        title: String,
+        category: String,
+        amount: Double,
+        dateString: String,
+        paymentMode: String,
+        notes: String
+    ) {
+        viewModelScope.launch {
+            val mKey = _selectedMonthKey.value
+            val expense = ExpenseItem(
+                title = title.trim(),
+                category = category.trim(),
+                amount = amount,
+                dateString = dateString.trim(),
+                monthKey = mKey,
+                paymentMode = paymentMode.trim(),
+                notes = notes.trim()
+            )
+            repository.insertExpense(expense)
+            isAddExpenseDialogOpen.value = false
+            snackbarMessage.value = "Expense '${expense.title}' recorded: ${_settings.value.currencySymbol}${expense.amount.toInt()}"
+        }
+    }
+
+    fun deleteExpense(expense: ExpenseItem) {
+        viewModelScope.launch {
+            repository.deleteExpense(expense)
+            snackbarMessage.value = "Expense '${expense.title}' deleted"
         }
     }
 
@@ -344,6 +465,34 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
             }
             repository.markBatchAttendance(list)
             snackbarMessage.value = "Marked ${list.size} students as Present"
+        }
+    }
+
+    // Batch Operations
+    fun saveBatch(batch: BatchItem) {
+        viewModelScope.launch {
+            if (batch.id == 0L) {
+                repository.insertBatch(batch)
+                snackbarMessage.value = "Batch '${batch.name}' added successfully"
+            } else {
+                repository.updateBatch(batch)
+                snackbarMessage.value = "Batch '${batch.name}' updated successfully"
+            }
+            batchToEdit.value = null
+        }
+    }
+
+    fun deleteBatch(batch: BatchItem) {
+        viewModelScope.launch {
+            repository.deleteBatch(batch)
+            snackbarMessage.value = "Batch '${batch.name}' deleted"
+        }
+    }
+
+    fun resetDefaultKgTo10Batches() {
+        viewModelScope.launch {
+            repository.seedKgTo10Batches(clearFirst = false)
+            snackbarMessage.value = "Standard Class KG - 10 batches loaded (12 PM - 8 PM)"
         }
     }
 
@@ -440,6 +589,96 @@ class FeeViewModel(application: Application) : AndroidViewModel(application) {
             val csv = repository.exportPaymentsCsv()
             onReady(csv)
         }
+    }
+
+    // --- Cloud Server Backup & Sync Methods ---
+    fun signInWithGoogleCloud() {
+        viewModelScope.launch {
+            _cloudSyncState.value = CloudSyncState.InProgress("Connecting to Google Cloud...")
+            val result = cloudBackupRepo.signInWithGoogle()
+            if (result.isSuccess) {
+                val user = result.getOrNull()
+                _cloudSyncState.value = CloudSyncState.Success("Connected to Google Cloud: ${user?.email ?: "Authorized"}")
+                snackbarMessage.value = "Connected as ${user?.email ?: "Google Account"}"
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "Sign-in cancelled or failed"
+                _cloudSyncState.value = CloudSyncState.Error(err)
+                snackbarMessage.value = "Sign-in failed: $err"
+            }
+        }
+    }
+
+    fun signOutCloud() {
+        cloudBackupRepo.signOut()
+        _cloudSyncState.value = CloudSyncState.Idle
+        snackbarMessage.value = "Signed out of Google Cloud"
+    }
+
+    fun backupToCloudServer() {
+        viewModelScope.launch {
+            val user = cloudBackupRepo.getCurrentUser()
+            if (user == null) {
+                snackbarMessage.value = "Please sign in with Google first to protect your backup"
+                return@launch
+            }
+
+            _cloudSyncState.value = CloudSyncState.InProgress("Uploading encrypted snapshot to Cloud Vault...")
+            try {
+                val jsonPayload = repository.exportBackupJson()
+                val currentSettings = repository.getSettings()
+                val result = cloudBackupRepo.uploadCloudBackup(
+                    instituteName = currentSettings.name,
+                    session = currentSettings.session,
+                    totalStudents = students.value.size,
+                    totalPayments = payments.value.size,
+                    dataPayload = jsonPayload
+                )
+                if (result.isSuccess) {
+                    val record = result.getOrThrow()
+                    _lastCloudSyncTime.value = record.timestamp
+                    _cloudSyncState.value = CloudSyncState.Success("Cloud backup saved (${record.timestamp})")
+                    snackbarMessage.value = "☁️ Protected cloud backup saved to server successfully!"
+                } else {
+                    val err = result.exceptionOrNull()?.message ?: "Upload failed"
+                    _cloudSyncState.value = CloudSyncState.Error(err)
+                    snackbarMessage.value = "Cloud backup failed: $err"
+                }
+            } catch (e: Exception) {
+                _cloudSyncState.value = CloudSyncState.Error(e.message ?: "Unknown error")
+                snackbarMessage.value = "Backup failed: ${e.message}"
+            }
+        }
+    }
+
+    fun restoreFromCloudBackup(record: CloudBackupRecord) {
+        viewModelScope.launch {
+            _cloudSyncState.value = CloudSyncState.InProgress("Restoring database from cloud snapshot...")
+            val result = repository.restoreBackupJson(record.dataPayload)
+            if (result.isSuccess) {
+                _settings.value = repository.getSettings()
+                _cloudSyncState.value = CloudSyncState.Success("Database restored from cloud snapshot")
+                snackbarMessage.value = "✅ Restored: ${result.getOrNull()}"
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "Restore failed"
+                _cloudSyncState.value = CloudSyncState.Error(err)
+                snackbarMessage.value = "Cloud restore error: $err"
+            }
+        }
+    }
+
+    fun deleteCloudBackup(backupId: String) {
+        viewModelScope.launch {
+            val res = cloudBackupRepo.deleteCloudBackup(backupId)
+            if (res.isSuccess) {
+                snackbarMessage.value = "Cloud snapshot removed"
+            } else {
+                snackbarMessage.value = "Failed to delete: ${res.exceptionOrNull()?.message}"
+            }
+        }
+    }
+
+    fun resetCloudSyncState() {
+        _cloudSyncState.value = CloudSyncState.Idle
     }
 
     fun clearSnackbar() {

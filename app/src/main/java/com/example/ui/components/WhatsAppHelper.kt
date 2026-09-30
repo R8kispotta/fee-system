@@ -82,7 +82,7 @@ object WhatsAppHelper {
         monthYear: String,
         amountDue: Double,
         dueDate: String,
-        settings: InstituteSettings
+        settings: InstituteSettings = InstituteSettings()
     ): String {
         return """
         🔔 *UPCOMING TUITION FEE NOTICE*
@@ -120,7 +120,7 @@ object WhatsAppHelper {
         amountDue: Double,
         dueDate: String,
         daysOverdue: Int,
-        settings: InstituteSettings
+        settings: InstituteSettings = InstituteSettings()
     ): String {
         val overdueNote = if (daysOverdue > 0) "($daysOverdue days past due)" else "(Past due date)"
         return """
@@ -156,7 +156,7 @@ object WhatsAppHelper {
      */
     fun buildEnrollmentWelcomeMessage(
         student: Student,
-        settings: InstituteSettings
+        settings: InstituteSettings = InstituteSettings()
     ): String {
         return """
         🎉 *ADMISSION & ENROLLMENT CONFIRMATION*
@@ -193,7 +193,7 @@ object WhatsAppHelper {
         withdrawalDate: String,
         reason: String,
         clearanceStatus: String,
-        settings: InstituteSettings
+        settings: InstituteSettings = InstituteSettings()
     ): String {
         return """
         📜 *STUDENT WITHDRAWAL & COURSE COMPLETION NOTICE*

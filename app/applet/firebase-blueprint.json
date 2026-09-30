@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "UserBackup": {
+      "title": "UserBackup",
+      "description": "Protected cloud backup snapshot storing students, fees, and institute configuration.",
+      "type": "object",
+      "properties": {
+        "backupId": {
+          "type": "string",
+          "description": "Unique identifier for the cloud backup snapshot."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner Google user ID."
+        },
+        "instituteName": {
+          "type": "string",
+          "description": "Name of the institute."
+        },
+        "session": {
+          "type": "string",
+          "description": "Active academic session (e.g. 2026-2027)."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp when the backup was created."
+        },
+        "totalStudents": {
+          "type": "number",
+          "description": "Number of students in this backup."
+        },
+        "totalPayments": {
+          "type": "number",
+          "description": "Number of payment transactions recorded."
+        },
+        "dataPayload": {
+          "type": "string",
+          "description": "Serialized protected JSON backup payload containing students, payment history, and institute settings."
+        }
+      },
+      "required": ["backupId", "userId", "timestamp", "dataPayload"]
+    },
+    "InstituteProfile": {
+      "title": "InstituteProfile",
+      "description": "User cloud institute profile and sync metadata.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Google user ID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the coaching institute."
+        },
+        "tagline": {
+          "type": "string",
+          "description": "Motto or tagline."
+        },
+        "session": {
+          "type": "string",
+          "description": "Academic session."
+        },
+        "address": {
+          "type": "string",
+          "description": "Address."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address."
+        },
+        "currencySymbol": {
+          "type": "string",
+          "description": "Currency symbol."
+        },
+        "lastSyncedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last cloud sync."
+        }
+      },
+      "required": ["userId", "name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/backups/{backupId}": {
+      "schema": "UserBackup",
+      "description": "Protected private cloud backups belonging to the authenticated user."
+    },
+    "/users/{userId}/profile/settings": {
+      "schema": "InstituteProfile",
+      "description": "Protected institute cloud profile and settings for the authenticated user."
+    }
+  }
+}

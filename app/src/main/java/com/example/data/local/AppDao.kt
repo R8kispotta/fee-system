@@ -77,7 +77,7 @@ interface AppDao {
     suspend fun recordAttendanceList(attendanceList: List<Attendance>)
 
     // --- Batches ---
-    @Query("SELECT * FROM batches ORDER BY gradeClass ASC, name ASC")
+    @Query("SELECT * FROM batches ORDER BY id ASC")
     fun getAllBatches(): Flow<List<BatchItem>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -86,8 +86,33 @@ interface AppDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBatches(batches: List<BatchItem>)
 
+    @Update
+    suspend fun updateBatch(batch: BatchItem)
+
     @Delete
     suspend fun deleteBatch(batch: BatchItem)
+
+    @Query("DELETE FROM batches WHERE id = :id")
+    suspend fun deleteBatchById(id: Long)
+
+    @Query("DELETE FROM batches")
+    suspend fun clearAllBatches()
+
+    // --- Expenses ---
+    @Query("SELECT * FROM institute_expenses ORDER BY createdAt DESC")
+    fun getAllExpenses(): Flow<List<ExpenseItem>>
+
+    @Query("SELECT * FROM institute_expenses WHERE monthKey = :monthKey ORDER BY createdAt DESC")
+    fun getExpensesForMonth(monthKey: Int): Flow<List<ExpenseItem>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExpense(expense: ExpenseItem): Long
+
+    @Delete
+    suspend fun deleteExpense(expense: ExpenseItem)
+
+    @Query("DELETE FROM institute_expenses")
+    suspend fun clearAllExpenses()
 
     // Bulk cleanup
     @Query("DELETE FROM students")

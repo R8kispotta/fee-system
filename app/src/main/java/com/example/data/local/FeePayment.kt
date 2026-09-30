@@ -18,5 +18,7 @@ data class FeePayment(
     val paymentMode: String = "Cash", // "Cash", "UPI", "Bank Transfer", "Cheque"
     val transactionId: String = "",
     val receiptNo: String,
-    val remarks: String = ""
+    val remarks: String = "",
+    val monthsCovered: Int = 1,
+    val coveragePeriod: String = ""
 )

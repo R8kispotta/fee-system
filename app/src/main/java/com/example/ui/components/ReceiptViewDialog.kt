@@ -205,6 +205,13 @@ fun ReceiptViewDialog(
                         ReceiptRow(label = "Roll No.", value = student?.rollNo ?: "—")
                         ReceiptRow(label = "Class / Course", value = payment.gradeClass)
                         ReceiptRow(label = "Fee Month", value = payment.monthYear)
+                        if (payment.monthsCovered > 1) {
+                            ReceiptRow(
+                                label = "Advance Period",
+                                value = "${payment.monthsCovered} Months (${payment.coveragePeriod.ifEmpty { payment.monthYear }})",
+                                valueColor = Color(0xFFD97706)
+                            )
+                        }
                         ReceiptRow(label = "Payment Date", value = paymentDateStr)
                         ReceiptRow(label = "Payment Mode", value = payment.paymentMode)
                         if (payment.transactionId.isNotEmpty()) {
@@ -267,6 +274,17 @@ fun ReceiptViewDialog(
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         )
                     }
+                }
+
+                if (settings.upiId.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    UpiQrCodeCard(
+                        upiId = settings.upiId,
+                        payeeName = settings.name,
+                        amount = payment.amountPaid,
+                        note = "Receipt ${payment.receiptNo}",
+                        currencySymbol = settings.currencySymbol
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

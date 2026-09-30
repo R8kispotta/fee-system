@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.example.data.local.AppDao
 import com.example.data.local.Attendance
 import com.example.data.local.BatchItem
+import com.example.data.local.ExpenseItem
 import com.example.data.local.FeePayment
 import com.example.data.local.Student
 import com.example.data.model.InstituteSettings
@@ -28,6 +29,17 @@ class FeeRepository(
     val allStudents: Flow<List<Student>> = appDao.getAllStudents()
     val allPayments: Flow<List<FeePayment>> = appDao.getAllPayments()
     val allBatches: Flow<List<BatchItem>> = appDao.getAllBatches()
+    val allExpenses: Flow<List<ExpenseItem>> = appDao.getAllExpenses()
+
+    fun getExpensesForMonth(monthKey: Int): Flow<List<ExpenseItem>> = appDao.getExpensesForMonth(monthKey)
+
+    suspend fun insertExpense(expense: ExpenseItem): Long = withContext(Dispatchers.IO) {
+        appDao.insertExpense(expense)
+    }
+
+    suspend fun deleteExpense(expense: ExpenseItem) = withContext(Dispatchers.IO) {
+        appDao.deleteExpense(expense)
+    }
 
     fun getStudentById(id: Long): Flow<Student?> = appDao.getStudentById(id)
 
@@ -83,8 +95,39 @@ class FeeRepository(
         appDao.insertBatch(batch)
     }
 
+    suspend fun updateBatch(batch: BatchItem) = withContext(Dispatchers.IO) {
+        appDao.updateBatch(batch)
+    }
+
     suspend fun deleteBatch(batch: BatchItem) = withContext(Dispatchers.IO) {
         appDao.deleteBatch(batch)
+    }
+
+    suspend fun deleteBatchById(id: Long) = withContext(Dispatchers.IO) {
+        appDao.deleteBatchById(id)
+    }
+
+    fun getStandardKgTo10Batches(): List<BatchItem> {
+        return listOf(
+            BatchItem(name = "KG Little Stars", gradeClass = "Class KG", timeSlot = "12:00 PM - 01:30 PM", feeAmount = 800.0),
+            BatchItem(name = "Class 1 Primers", gradeClass = "Class 1", timeSlot = "12:30 PM - 02:00 PM", feeAmount = 900.0),
+            BatchItem(name = "Class 2 Juniors", gradeClass = "Class 2", timeSlot = "01:00 PM - 02:30 PM", feeAmount = 1000.0),
+            BatchItem(name = "Class 3 Explorers", gradeClass = "Class 3", timeSlot = "01:30 PM - 03:00 PM", feeAmount = 1100.0),
+            BatchItem(name = "Class 4 Achievers", gradeClass = "Class 4", timeSlot = "02:00 PM - 03:30 PM", feeAmount = 1200.0),
+            BatchItem(name = "Class 5 Middle Wing", gradeClass = "Class 5", timeSlot = "02:30 PM - 04:00 PM", feeAmount = 1300.0),
+            BatchItem(name = "Class 6 Foundation", gradeClass = "Class 6", timeSlot = "03:00 PM - 04:30 PM", feeAmount = 1400.0),
+            BatchItem(name = "Class 7 Scholars", gradeClass = "Class 7", timeSlot = "04:00 PM - 05:30 PM", feeAmount = 1500.0),
+            BatchItem(name = "Class 8 Pre-Boards", gradeClass = "Class 8", timeSlot = "04:30 PM - 06:00 PM", feeAmount = 1600.0),
+            BatchItem(name = "Class 9 Secondary Prep", gradeClass = "Class 9", timeSlot = "05:00 PM - 06:30 PM", feeAmount = 1800.0),
+            BatchItem(name = "Class 10 Board Masters", gradeClass = "Class 10", timeSlot = "06:30 PM - 08:00 PM", feeAmount = 2000.0)
+        )
+    }
+
+    suspend fun seedKgTo10Batches(clearFirst: Boolean = false) = withContext(Dispatchers.IO) {
+        if (clearFirst) {
+            appDao.clearAllBatches()
+        }
+        appDao.insertBatches(getStandardKgTo10Batches())
     }
 
     // --- Settings Persistence ---
@@ -92,6 +135,7 @@ class FeeRepository(
         return InstituteSettings(
             name = prefs.getString("institute_name", "Vidya Coaching Institute") ?: "Vidya Coaching Institute",
             tagline = prefs.getString("institute_tagline", "Empowering Students to Excel") ?: "Empowering Students to Excel",
+            session = prefs.getString("institute_session", "2026-2027") ?: "2026-2027",
             address = prefs.getString("institute_address", "Plot 42, Academy Lane, Knowledge Park") ?: "Plot 42, Academy Lane, Knowledge Park",
             phone = prefs.getString("institute_phone", "+91 98765 43210") ?: "+91 98765 43210",
             email = prefs.getString("institute_email", "support@vidyainstitute.in") ?: "support@vidyainstitute.in",
@@ -108,6 +152,7 @@ class FeeRepository(
         prefs.edit()
             .putString("institute_name", settings.name)
             .putString("institute_tagline", settings.tagline)
+            .putString("institute_session", settings.session)
             .putString("institute_address", settings.address)
             .putString("institute_phone", settings.phone)
             .putString("institute_email", settings.email)
@@ -145,6 +190,7 @@ class FeeRepository(
         val settingsObj = JSONObject()
         settingsObj.put("name", settings.name)
         settingsObj.put("tagline", settings.tagline)
+        settingsObj.put("session", settings.session)
         settingsObj.put("address", settings.address)
         settingsObj.put("phone", settings.phone)
         settingsObj.put("email", settings.email)
@@ -225,6 +271,7 @@ class FeeRepository(
                     current.copy(
                         name = s.optString("name", current.name),
                         tagline = s.optString("tagline", current.tagline),
+                        session = s.optString("session", current.session),
                         address = s.optString("address", current.address),
                         phone = s.optString("phone", current.phone),
                         email = s.optString("email", current.email),
@@ -343,15 +390,29 @@ class FeeRepository(
 
     // --- Prepopulate Sample Data if Clean DB ---
     suspend fun checkAndSeedInitialData() = withContext(Dispatchers.IO) {
+        val existingBatches = appDao.getAllBatches().first()
+        val hasKgBatches = existingBatches.any { it.gradeClass.contains("KG", ignoreCase = true) }
+        if (existingBatches.isEmpty() || !hasKgBatches) {
+            appDao.insertBatches(getStandardKgTo10Batches())
+        }
+
+        val existingExpenses = appDao.getAllExpenses().first()
+        if (existingExpenses.isEmpty()) {
+            val currentMonthKey = SimpleDateFormat("yyyyMM", Locale.getDefault()).format(Date()).toInt()
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val sampleExpenses = listOf(
+                ExpenseItem(title = "Premises Rent", category = "Rent", amount = 12000.0, dateString = today, monthKey = currentMonthKey, paymentMode = "Bank Transfer", notes = "Monthly institute lease"),
+                ExpenseItem(title = "Electricity & Power", category = "Utilities", amount = 1850.0, dateString = today, monthKey = currentMonthKey, paymentMode = "UPI", notes = "Air conditioning & lights"),
+                ExpenseItem(title = "Study Notes & Test Printing", category = "Printing", amount = 1400.0, dateString = today, monthKey = currentMonthKey, paymentMode = "Cash", notes = "Class 9 & 10 study booklets"),
+                ExpenseItem(title = "Broadband Internet", category = "Utilities", amount = 999.0, dateString = today, monthKey = currentMonthKey, paymentMode = "UPI", notes = "High speed WiFi")
+            )
+            for (e in sampleExpenses) {
+                appDao.insertExpense(e)
+            }
+        }
+
         val existingStudents = appDao.getAllStudents().first()
         if (existingStudents.isEmpty()) {
-            val sampleBatches = listOf(
-                BatchItem(name = "Morning Batch (Board Prep)", gradeClass = "Class 10 - Mathematics", timeSlot = "07:30 AM - 09:00 AM", feeAmount = 1800.0),
-                BatchItem(name = "Evening Batch", gradeClass = "Class 12 - Physics", timeSlot = "05:00 PM - 06:30 PM", feeAmount = 2500.0),
-                BatchItem(name = "JEE / NEET Foundation", gradeClass = "Class 11 - Science", timeSlot = "04:00 PM - 06:00 PM", feeAmount = 3000.0),
-                BatchItem(name = "Grammar & Spoken English", gradeClass = "Language & Skill", timeSlot = "06:30 PM - 07:30 PM", feeAmount = 1200.0)
-            )
-            appDao.insertBatches(sampleBatches)
 
             val calendar = Calendar.getInstance()
             val currentMonthYear = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(calendar.time)

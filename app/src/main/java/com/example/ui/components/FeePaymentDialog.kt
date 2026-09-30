@@ -37,7 +37,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.data.local.Student
+import com.example.data.model.InstituteSettings
 
 @Composable
 fun FeePaymentDialog(
@@ -45,9 +47,22 @@ fun FeePaymentDialog(
     currentMonthYear: String,
     currentMonthKey: Int,
     currencySymbol: String,
+    instituteSettings: InstituteSettings = InstituteSettings(),
     onDismiss: () -> Unit,
-    onConfirm: (amount: Double, discount: Double, monthYear: String, monthKey: Int, mode: String, txnId: String, remarks: String) -> Unit
+    onConfirm: (
+        amount: Double,
+        discount: Double,
+        monthYear: String,
+        monthKey: Int,
+        mode: String,
+        txnId: String,
+        remarks: String,
+        monthsCovered: Int,
+        coveragePeriod: String
+    ) -> Unit
 ) {
+    var monthsCovered by remember { mutableStateOf(1) }
+    var coveragePeriod by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf(student.monthlyFee.toInt().toString()) }
     var discountText by remember { mutableStateOf("0") }
     var paymentMode by remember { mutableStateOf("UPI") } // "UPI", "Cash", "Bank Transfer", "Cheque"
@@ -128,7 +143,42 @@ fun FeePaymentDialog(
                     style = MaterialTheme.typography.bodyLarge
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Multi-Month / Advance Period selector
+                Text(
+                    text = "Billing Duration / Advance Payment",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val durationOptions = listOf(
+                        1 to "1 Mo",
+                        2 to "2 Mo",
+                        3 to "3 Mo (Quarterly)",
+                        6 to "6 Mo (Half-Yr)"
+                    )
+                    durationOptions.forEach { (count, label) ->
+                        FilterChip(
+                            selected = monthsCovered == count,
+                            onClick = {
+                                monthsCovered = count
+                                coveragePeriod = if (count > 1) "$count Months Advance" else ""
+                                val disc = discountText.toDoubleOrNull() ?: 0.0
+                                val totalFee = (student.monthlyFee * count - disc).coerceAtLeast(0.0)
+                                amountText = totalFee.toInt().toString()
+                            },
+                            label = { Text(label, fontSize = 11.sp) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Amount
                 OutlinedTextField(
@@ -221,6 +271,18 @@ fun FeePaymentDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+
+                if (paymentMode == "UPI" && instituteSettings.upiId.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    val enteredAmount = amountText.toDoubleOrNull() ?: student.monthlyFee
+                    UpiQrCodeCard(
+                        upiId = instituteSettings.upiId,
+                        payeeName = instituteSettings.name,
+                        amount = enteredAmount,
+                        note = "Fee - ${student.name} (${student.rollNo})",
+                        currencySymbol = currencySymbol
+                    )
+                }
             }
         },
         confirmButton = {
@@ -236,7 +298,9 @@ fun FeePaymentDialog(
                             currentMonthKey,
                             paymentMode,
                             transactionId.trim(),
-                            remarks.trim()
+                            remarks.trim(),
+                            monthsCovered,
+                            coveragePeriod.trim()
                         )
                     } else {
                         amountError = true
